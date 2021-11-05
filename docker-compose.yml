@@ -4,6 +4,8 @@ services:
     bot:
         build: ./botCode
         container_name: telegram_bot
+        volumes:
+          - ./botCode:/usr/src/app
         environment:
             MYSQL_HOST: database
             MYSQL_USER: root
