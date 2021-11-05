@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+    bot:
+        build: ./botCode
+        container_name: telegram_bot
+        environment:
+            MYSQL_HOST: database
+            MYSQL_USER: root
+            MYSQL_PASSWORD: dbpass
+            MYSQL_DB: maindb
+
+    database:
+        image: mysql:8.0.27
+        container_name: mysql_database
+        volumes:
+            - ./database/files:/var/lib/mysql
+            - ./database/init.sql:/data/application/init.sql
+        command: --init-file /data/application/init.sql
+        environment:
+            MYSQL_ROOT_PASSWORD: dbpass
+            MYSQL_DATABASE: maindb
+        cap_add:
+            - SYS_NICE  # suppresses mbind operation not permitted message
