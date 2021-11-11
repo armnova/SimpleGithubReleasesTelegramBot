@@ -6,6 +6,7 @@ services:
         container_name: telegram_bot
         volumes:
           - ./botCode:/usr/src/app
+          - ./logs:/usr/src/app/logs
         environment:
             MYSQL_HOST: database
             MYSQL_USER: root
@@ -16,7 +17,7 @@ services:
         image: mysql:8.0.27
         container_name: mysql_database
         volumes:
-            - ./database/files:/var/lib/mysql
+            - dbVolume:/var/lib/mysql
             - ./database/init.sql:/data/application/init.sql
         command: --init-file /data/application/init.sql
         environment:
@@ -24,3 +25,7 @@ services:
             MYSQL_DATABASE: maindb
         cap_add:
             - SYS_NICE  # suppresses mbind operation not permitted message
+
+volumes:
+    dbVolume:
+
