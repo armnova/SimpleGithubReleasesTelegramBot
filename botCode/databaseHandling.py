@@ -14,12 +14,13 @@ DATABASE_RETRY_INTERVAL = 10
 
 # TODO: get reponame from HTTP request for making it pretty (case-sensitive)
 
-logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.DEBUG, handlers=[logging.FileHandler("./logs/databaseHandling.log"), logging.StreamHandler()])
+logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.WARNING, handlers=[logging.FileHandler("./logs/databaseHandling.log"), logging.StreamHandler()])
 
 @dataclass
 class dbEntry():
     id: int
     chatID: str
+    repoOwner: str
     repoName: str
     nameHash: str
     repoLink: str
@@ -93,7 +94,7 @@ class DatabaseHandler():
                 releaseTagName = response.json()[0]["tag_name"]
                 releaseID = response.json()[0]["id"]
                 nameHash = hashlib.md5(repo.encode()).hexdigest()
-                self.cursor.execute(f'INSERT INTO entries (chatID, repoName, nameHash, repoLink, currentReleaseTagName, currentReleaseID, previousReleaseID) VALUES ("{chatId}", "{repo}", "{nameHash}", "{repoLink}", "{releaseTagName}", "{releaseID}", "{releaseID}")')
+                self.cursor.execute(f'INSERT INTO entries (chatID, repoOwner, repoName, nameHash, repoLink, currentReleaseTagName, currentReleaseID, previousReleaseID) VALUES ("{chatId}", "{owner}", "{repo}", "{nameHash}", "{repoLink}", "{releaseTagName}", "{releaseID}", "{releaseID}")')
                 self.db.commit()
         except:
             return "Error"

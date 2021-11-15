@@ -8,9 +8,9 @@ import logging
 import threading
 import requests
 
-SLEEP_TIME = 5
+SLEEP_TIME = 3600
 
-logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.DEBUG, handlers=[logging.FileHandler("./logs/bot.log"), logging.StreamHandler()])
+logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.WARNING, handlers=[logging.FileHandler("./logs/bot.log"), logging.StreamHandler()])
 
 token = open("token.txt").read()
 
@@ -56,7 +56,6 @@ def callback_handler(call: types.CallbackQuery):
     if(call.data == "1"): # see all repos
         repoList = database.getRepos(call.message.chat.id)
         if len(repoList) != 0:
-            logging.debug(f"Not empty! {repoList}")
             markup = types.InlineKeyboardMarkup(row_width=3)
             for entry in repoList:
                 btn1 = types.InlineKeyboardButton(entry.repoName, url=entry.repoLink)
@@ -96,9 +95,10 @@ def callback_handler(call: types.CallbackQuery):
 
 def notifier():
     allEntries = database.dbDump()
+    logging.debug(allEntries)
     updateCommands = []
     for entry in allEntries:
-        response = requests.get(entry.repoLink)
+        response = requests.get(f"https://api.github.com/repos/{entry.repoOwner}/{entry.repoName}/releases")
         assert response.status_code == 200
         releaseTag = response.json()[0]["tag_name"]
         if releaseTag != entry.currentReleaseTagName:
@@ -107,11 +107,12 @@ def notifier():
             button2 = types.InlineKeyboardButton(releaseTag, url = entry.repoLink + "/releases/" + releaseTag)
             markup.add(button1, button2)
             bot.send_message(entry.chatID, strings.newReleaseFoundMessage, reply_markup = markup)
-            updateCommands.append(f'UPDATE entries SET currentReleaseTagName = {releaseTag} WHERE nameHash = {entry.nameHash}')
+            updateCommands.append(f'UPDATE entries SET currentReleaseTagName = "{releaseTag}" WHERE nameHash = "{entry.nameHash}"')
     database.updateEntries(updateCommands)
     time.sleep(SLEEP_TIME)
 
 th = threading.Thread(target=notifier)
+logging.debug("Starting notifier")
 th.start()
 
 bot.infinity_polling()
