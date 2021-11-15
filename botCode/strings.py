@@ -1,8 +1,11 @@
 welcomeMessage = "Hello! Pick one of the options below"
 
 addRepoMessage = "Add a repo"
-removeRepoMessage = "Remove a repo"
+
 seeAllReposMessage = "See all repos and releases"
+delteRepoEmoji = "🗑️"
+deletedRepoMessage = "Entry deleted"
+refreshListMessage = "Press to refresh the list"
 noReposFoundMessage = "You are not watching any repos"
 nevermindMessage = "Nevermind"
 
@@ -13,6 +16,7 @@ returnMessage = "Press to return"
 
 repoInvalidFormatMessage = "I can't parse that. Try again?"
 
+repoAddError = "Something went wrong. Does the repo have releases? Try again"
 repoAdded = "Repo succesfully added. Add another?"
 repoAddedYes = "Yes"
 repoAddedNo = "No"
@@ -20,3 +24,5 @@ repoAddedNo = "No"
 showingReposMessage = "Here are your watched repos:"
 
 noSenseMessage = "I'm sorry, I don't understand. Pick one of the options below"
+
+newReleaseFoundMessage = "New release:"

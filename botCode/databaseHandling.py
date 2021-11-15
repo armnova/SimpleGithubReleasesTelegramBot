@@ -8,8 +8,11 @@ import logging
 import threading
 import re
 import requests
+import hashlib
 
 DATABASE_RETRY_INTERVAL = 10
+
+# TODO: get reponame from HTTP request for making it pretty (case-sensitive)
 
 logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.DEBUG, handlers=[logging.FileHandler("./logs/databaseHandling.log"), logging.StreamHandler()])
 
@@ -18,6 +21,7 @@ class dbEntry():
     id: int
     chatID: str
     repoName: str
+    nameHash: str
     repoLink: str
     currentReleaseTagName: str
     currentReleaseID: str
@@ -50,44 +54,67 @@ class DatabaseHandler():
 
     def getRepos(self, chatId: str) -> list:
         with self.dbLock:
-            self.cursor.execute(f'SELECT repoName, currentReleaseTagName, repoLink FROM entries WHERE chatID = "{chatId}"')
+            self.cursor.execute(f'SELECT * FROM entries WHERE chatID = "{chatId}"')
             self.db.commit()
-            entryList = []
-            #for row in self.cursor.fetchall():
-            #    entry = dbEntry(row)
-            returnList = self.cursor.fetchall()
+            returnList = []
+            for entry in self.cursor.fetchall():
+                returnList.append(dbEntry(*entry))
             return returnList
     
-    def addRepo(self, chatId: str, repoLink: str) -> str:
-        regexMatch = re.match("(?:https://)github.com[:/](.*)[:/](.*)", repoLink)
+    def addRepo(self, chatId: str, repoPath: str) -> str:
+        owner = ""
+        repo = ""
+        repoLink = ""
+        regexMatch = re.match("(?:https://)github.com[:/](.*)[:/](.*)", repoPath)
         if regexMatch:
             # get latest release version
             # insert into db: group 1 is the user+repo name
             ownerAndRepo = regexMatch.groups(1)
             owner = ownerAndRepo[0]
             repo = ownerAndRepo[1]
-            try:
-                response = requests.get(f"https://api.github.com/repos/{owner}/{repo}/releases")
-                assert response.status_code == 200
-                with self.dbLock:
-                    self.cursor.execute(f'SELECT repoName FROM entries WHERE chatID = "{chatId}" AND repoName = "{repo}"')
-                    self.db.commit()
-                    if len(self.cursor.fetchall()) != 0:
-                        return "Exists"
-
-                    #logging.debug(response.json()[0])
-
-                    releaseTagName = response.json()[0]["tag_name"]
-                    releaseID = response.json()[0]["id"]
-                    self.cursor.execute(f'INSERT INTO entries (chatID, repoName, repoLink, currentReleaseTagName, currentReleaseID, previousReleaseID) VALUES ("{chatId}", "{repo}", "{repoLink}", "{releaseTagName}", "{releaseID}", "{releaseID}")')
-                    self.db.commit()
-            except:
-                raise
-            return "Succesful"
-
-        elif re.match("(.*)[/](.*)", repoLink):
-            # owner/repo
-
-            pass
+            repoLink = repoPath
+        elif re.match("(.*)[/](.*)", repoPath):
+            regexMatch = re.match("(.*)[/](.*)", repoPath)
+            owner = regexMatch.groups(1)[0]
+            repo = regexMatch.groups(1)[1]
+            repoLink = f"https://github.com/{owner}/{repo}"
         else:
             return "Invalid"
+
+        try:
+            logging.debug(owner + " " + repo)
+            response = requests.get(f"https://api.github.com/repos/{owner}/{repo}/releases")
+            assert response.status_code == 200
+            with self.dbLock:
+                self.cursor.execute(f'SELECT repoName FROM entries WHERE chatID = "{chatId}" AND repoName = "{repo}"')
+                self.db.commit()
+                if len(self.cursor.fetchall()) != 0:
+                    return "Exists"
+                releaseTagName = response.json()[0]["tag_name"]
+                releaseID = response.json()[0]["id"]
+                nameHash = hashlib.md5(repo.encode()).hexdigest()
+                self.cursor.execute(f'INSERT INTO entries (chatID, repoName, nameHash, repoLink, currentReleaseTagName, currentReleaseID, previousReleaseID) VALUES ("{chatId}", "{repo}", "{nameHash}", "{repoLink}", "{releaseTagName}", "{releaseID}", "{releaseID}")')
+                self.db.commit()
+        except:
+            return "Error"
+
+        return "Succesful"
+    
+    def removeRepo(self, chatId: str, repoNameHash: str):
+        with self.dbLock:
+            self.cursor.execute(f'DELETE FROM entries WHERE chatID = "{chatId}" AND nameHash = "{repoNameHash}"')
+
+    def dbDump(self) -> list:
+        with self.dbLock:
+            self.cursor.execute("SELECT * FROM entries")
+            self.db.commit()
+            returnList = []
+            for entry in self.cursor.fetchall():
+                returnList.append(dbEntry(*entry))
+            return returnList
+
+    def updateEntries(self, updateCommands: list):
+        with self.dbLock:
+            for entry in updateCommands:
+                self.cursor.execute(entry)
+            self.db.commit()
