@@ -1,22 +1,49 @@
 import time
 import telebot
-from telebot import types
-from telebot.apihelper import answer_callback_query
-from databaseHandling import DatabaseHandler
 import strings
 import logging
 import threading
 import requests
+import os
+import databaseHandlers
+from telebot import types
+from telebot.apihelper import answer_callback_query
+from databaseHandling import DatabaseHandler
 
 SLEEP_TIME = 3600
 
+if not os.path.exists(os.getcwd() + "/logs"):
+    os.mkdir(os.getcwd() + "/logs")
+
+if not os.path.isfile(os.getcwd() + "/logs" + "/bot.log"):
+    file = open("logs/bot.log", "w")
+    file.close()
+    
+if not os.path.isfile(os.getcwd() + "/logs" + "/databaseHandling.log"):
+    file = open("logs/databaseHandling.log", "w")
+    file.close()
+
 logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.WARNING, handlers=[logging.FileHandler("./logs/bot.log"), logging.StreamHandler()])
 
-token = open("token.txt").read()
+# Initialization
+
+token = ""
+databaseType = ""
+databaseHandler = DatabaseHandler()
+
+with open("config.txt") as configFile:
+    token = configFile.readline()
+    databaseType = configFile.readline()
+
+match databaseType:
+    case "mysql":
+        databaseHandler = databaseHandlers.MySQLHandler()
+    case "pickledb":
+        databaseHandler = databaseHandlers.PickleDBHandler()
+    case "dynamodb":
+        databaseHandler = databaseHandlers.DynamoDBHandler()
 
 bot = telebot.TeleBot(token, parse_mode=None)
-
-database = DatabaseHandler()
 
 awaitingAdd = []
 
@@ -25,6 +52,8 @@ bt1 = types.InlineKeyboardButton(strings.seeAllReposMessage, callback_data = 1)
 bt2 = types.InlineKeyboardButton(strings.addRepoMessage, callback_data = 2)
 entryMarkup.add(bt1, bt2)
 
+# Message handler functions
+
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     bot.send_message(message.chat.id, strings.welcomeMessage, reply_markup = entryMarkup)
@@ -32,7 +61,7 @@ def send_welcome(message):
 @bot.message_handler()
 def process_message(message):
     if message.chat.id in awaitingAdd:
-        result = database.addRepo(message.chat.id, message.text)
+        result = databaseHandler.addRepo(message.chat.id, message.text)
         if result == "Exists":
             markup = types.InlineKeyboardMarkup()
             button = types.InlineKeyboardButton(strings.returnMessage, callback_data = 101)
@@ -54,7 +83,7 @@ def process_message(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call: types.CallbackQuery):
     if(call.data == "1"): # see all repos
-        repoList = database.getRepos(call.message.chat.id)
+        repoList = databaseHandler.getRepos(call.message.chat.id)
         if len(repoList) != 0:
             markup = types.InlineKeyboardMarkup(row_width=3)
             for entry in repoList:
@@ -85,7 +114,7 @@ def callback_handler(call: types.CallbackQuery):
         if call.message.chat.id in awaitingAdd:
             awaitingAdd.remove(call.message.chat.id)
     else: # called back with md5 hash, delete from dbase
-        database.removeRepo(call.message.chat.id, call.data)
+        databaseHandler.removeRepo(call.message.chat.id, call.data)
         markup = types.InlineKeyboardMarkup()
         button = types.InlineKeyboardButton(strings.refreshListMessage, callback_data = 1)
         markup.add(button)
@@ -94,7 +123,7 @@ def callback_handler(call: types.CallbackQuery):
     answer_callback_query(token, callback_query_id = call.id)
 
 def notifier():
-    allEntries = database.dbDump()
+    allEntries = databaseHandler.dbDump()
     logging.debug(allEntries)
     updateCommands = []
     for entry in allEntries:
@@ -107,9 +136,12 @@ def notifier():
             button2 = types.InlineKeyboardButton(releaseTag, url = entry.repoLink + "/releases/" + releaseTag)
             markup.add(button1, button2)
             bot.send_message(entry.chatID, strings.newReleaseFoundMessage, reply_markup = markup)
+            # TODO: This has to change to something more generic
             updateCommands.append(f'UPDATE entries SET currentReleaseTagName = "{releaseTag}" WHERE nameHash = "{entry.nameHash}"')
-    database.updateEntries(updateCommands)
+    databaseHandler.updateEntries(updateCommands)
     time.sleep(SLEEP_TIME)
+
+# Starting the bot
 
 th = threading.Thread(target=notifier)
 logging.debug("Starting notifier")
