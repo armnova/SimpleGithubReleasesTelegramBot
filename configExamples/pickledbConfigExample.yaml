@@ -1,0 +1,3 @@
+databaseType: dynamodb
+sleepTime: 10800
+databaseFile: someFile.db

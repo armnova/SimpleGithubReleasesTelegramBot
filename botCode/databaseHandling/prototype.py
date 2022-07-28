@@ -1,11 +1,6 @@
-import os
 from dataclasses import dataclass
-import time
-import logging
-import threading
-import re
-import requests
-import hashlib
+from email.policy import strict
+from typing import Tuple
 
 DATABASE_RETRY_INTERVAL = 10
 
@@ -21,7 +16,22 @@ class dbEntry():
     repoLink: str
     currentReleaseTagName: str
     currentReleaseID: str
-    previousReleaseID: str
+
+@dataclass
+class dbEntryNoID():
+    chatID: str
+    repoOwner: str
+    repoName: str
+    nameHash: str
+    repoLink: str
+    currentReleaseTagName: str
+    currentReleaseID: str
+
+@dataclass
+class dbEntryUpdate():
+    chatID: str
+    nameHash: str
+    newTag: str
 
 class DatabaseHandler():
 

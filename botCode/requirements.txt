@@ -1,3 +1,7 @@
 pyTelegramBotAPI
 mysql-connector-python
 pickledb
+boto3
+PyYAML
+Flask
+gunicorn

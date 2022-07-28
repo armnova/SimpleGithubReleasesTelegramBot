@@ -8,6 +8,5 @@ CREATE TABLE IF NOT EXISTS entries (
 	nameHash VARCHAR(255) NOT NULL,
 	repoLink VARCHAR(255) NOT NULL,
 	currentReleaseTagName VARCHAR(255),
-    currentReleaseID VARCHAR(255),
-	previousReleaseID VARCHAR(255));
+    currentReleaseID VARCHAR(255));
 	

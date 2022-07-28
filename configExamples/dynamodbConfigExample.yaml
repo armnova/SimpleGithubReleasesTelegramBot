@@ -1,0 +1,4 @@
+token: yourtokengoeshere
+databaseType: dynamodb
+sleepTime: 10800
+tableName:  BotTableName

@@ -1,15 +1,15 @@
 import os
-from botCode.databaseHandling import DatabaseHandler
 import mysql.connector
-from mysql.connector import cursor
-from mysql.connector.connection import MySQLConnection
-from dataclasses import dataclass
 import time
 import logging
 import threading
-import re
 import requests
 import hashlib
+import helpers
+from mysql.connector import cursor
+from mysql.connector.connection import MySQLConnection
+from databaseHandling.prototype import dbEntry
+from databaseHandling.prototype import DatabaseHandler
 
 DATABASE_RETRY_INTERVAL = 10
 
@@ -18,8 +18,6 @@ DATABASE_RETRY_INTERVAL = 10
 class MySQLHandler(DatabaseHandler):
 
     def __init__(self) -> None:
-        logging.basicConfig(format="%(levelname)s @ %(asctime)s -> %(message)s", level=logging.WARNING, handlers=[logging.FileHandler("./logs/databaseHandling.log"), logging.StreamHandler()])
-
         #get database credentials from environment
         dbhost = os.environ.get("MYSQL_HOST")
         dbuser = os.environ.get("MYSQL_USER")
@@ -52,40 +50,25 @@ class MySQLHandler(DatabaseHandler):
             return returnList
     
     def addRepo(self, chatId: str, repoPath: str) -> str:
-        owner = ""
-        repo = ""
-        repoLink = ""
-        regexMatch = re.match("(?:https://)github.com[:/](.*)[:/](.*)", repoPath)
-        if regexMatch:
-            # get latest release version
-            # insert into db: group 1 is the user+repo name
-            ownerAndRepo = regexMatch.groups(1)
-            owner = ownerAndRepo[0]
-            repo = ownerAndRepo[1]
-            repoLink = repoPath
-        elif re.match("(.*)[/](.*)", repoPath):
-            regexMatch = re.match("(.*)[/](.*)", repoPath)
-            owner = regexMatch.groups(1)[0]
-            repo = regexMatch.groups(1)[1]
-            repoLink = f"https://github.com/{owner}/{repo}"
-        else:
-            return "Invalid"
-
+        entryContent, valid = helpers.repoValidation(repoPath)
+        if valid != True:
+            return "Error"
         try:
-            logging.debug(owner + " " + repo)
-            response = requests.get(f"https://api.github.com/repos/{owner}/{repo}/releases")
+            logging.debug(entryContent.repoOwner + " " + entryContent.repoName)
+            response = requests.get(f"https://api.github.com/repos/{entryContent.repoOwner}/{entryContent.repoName}/releases")
             assert response.status_code == 200
             with self.dbLock:
-                self.cursor.execute(f'SELECT repoName FROM entries WHERE chatID = "{chatId}" AND repoName = "{repo}"')
+                self.cursor.execute(f'SELECT repoName FROM entries WHERE chatID = "{chatId}" AND repoName = "{entryContent.repoName}"')
                 self.db.commit()
                 if len(self.cursor.fetchall()) != 0:
                     return "Exists"
                 releaseTagName = response.json()[0]["tag_name"]
                 releaseID = response.json()[0]["id"]
-                nameHash = hashlib.md5(repo.encode()).hexdigest()
-                self.cursor.execute(f'INSERT INTO entries (chatID, repoOwner, repoName, nameHash, repoLink, currentReleaseTagName, currentReleaseID, previousReleaseID) VALUES ("{chatId}", "{owner}", "{repo}", "{nameHash}", "{repoLink}", "{releaseTagName}", "{releaseID}", "{releaseID}")')
+                nameHash = hashlib.md5(entryContent.repoName.encode()).hexdigest()
+                self.cursor.execute(f'INSERT INTO entries (chatID, repoOwner, repoName, nameHash, repoLink, currentReleaseTagName, currentReleaseID) VALUES ("{chatId}", "{entryContent.repoOwner}", "{entryContent.repoName}", "{nameHash}", "{entryContent.repoLink}", "{releaseTagName}", "{releaseID}")')
                 self.db.commit()
-        except:
+        except Exception as exc:
+            logging.error(exc)
             return "Error"
 
         return "Succesful"
